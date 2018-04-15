@@ -14,6 +14,8 @@ used across log files.
 
 * Simple, lightweight and memory efficient tool
 * Flexible way to specify datetime range
+* Advanced way to specify search paths
+(dir and relative dir and filename pattern combinations)
 
 ## Usage
 
@@ -27,7 +29,7 @@ optional arguments:
                         'dt+num[us|ms|s|m]' or 'dt-num[us|ms|s|m]' or
                         'dt+-num[us|ms|s|m]')
   --dir DIR             comma separated list of directory to search (default
-                        cwd: '/Users/vkuma/IdeaProjects/logtraveler')
+                        pwd: '${PWD}')
   -l, --local           Local log search, --dir will be set to '\'
   -s SUB, --sub SUB     comma separated subdirs pattern to search within --dir
                         , if just '*' is passed recursively searched on all
