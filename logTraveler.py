@@ -409,7 +409,7 @@ def get_options():
     parser.add_argument('--ignore_lineno', action='store_true',
                         help='Ignore line number')
 
-    parser.add_argument('--ignore_color', action='store_true',
+    parser.add_argument('-c', '--ignore_color', action='store_true',
                         help='Ignore color')
 
     parser.add_argument('-n', '--num_lines', default=DEFAULT_NUM_LINES_FOR_DT_PAT,
