@@ -8,6 +8,7 @@ import os
 import fnmatch
 import gzip
 import glob
+import sys
 
 DEFAULT_SUB_DIRS = 'var/log/ , var/nvOS/etc/*/ , var/nvOS/log/ , var/lib/lxc/*/rootfs/ , var/lib/lxc/*/rootfs/var/log'
 
@@ -256,7 +257,7 @@ def gen_all_files(search_dirs, subdirpats, filepats):
                             yield f
 
 
-class fcolors:
+class FColors:
     """
     https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
     """
@@ -273,12 +274,11 @@ class fcolors:
     UNDERLINE = '\033[4m'
 
 
-class logFile:
-    def __init__(self, file, dt1, dt2, options):
+class LogFile:
+    def __init__(self, file, options):
         self.filename = file
         self.is_gz = self.filename.endswith('gz')
-        self.lines = []
-        self._get_dt_pat(dt1, dt2, options)
+        self.lines = self._gen_dt_pat(options.dt1, options.dt2, options)
 
     def _fopen(self):
         if self.is_gz:
@@ -287,10 +287,12 @@ class logFile:
             fopen = open
         return fopen
 
-    def _get_dt_pat(self, dt1, dt2, options):
+    def _gen_dt_pat(self, dt1, dt2, options):
         """
-        Reads few lines from the file and 
-        return the datetime pattern that the file belongs to
+        It is a generator for filtered log lines
+        Reads few lines from the file to discover datetime pattern,
+        and reads last few lines and then decides the datetime range of the file,
+        before attempting to filter
         """
         dt_pat = None
         first_dt = None
@@ -314,13 +316,14 @@ class logFile:
 
         for n_line, line in enumerate(reversed(all_lines), 1):
             try:
-                last_dt = mydt(line)
+                last_dt = mydt(line, dt_pat)
                 break
             except ValueError:
                 pass
             if n_line > options.num_lines:
                 break
 
+        # Optimization to not to look every log files
         if self.is_log_ordered(first_dt, last_dt):
             if first_dt.usec > dt2.usec or last_dt.usec < dt1.usec:
                 return
@@ -332,38 +335,50 @@ class logFile:
                 if self.is_log_ordered(first_dt, last_dt) and line_dt.usec > dt2.usec:
                     break
                 elif dt1.usec <= line_dt.usec <= dt2.usec:
-                    self.lines.append(self.get_formatted_line(ln, line, options))
+                    yield self.get_formatted_line(ln, line, options)
                     written_something = True
             except ValueError:
                 if written_something:
                     # Lines without dt is appended as part of prev lines
-                    self.lines.append(self.get_formatted_line(ln, line, options))
+                    yield self.get_formatted_line(ln, line, options)
 
     @staticmethod
     def is_log_ordered(first_dt, last_dt):
+        """
+        Logically log files are ordered but,
+        what if datetime doesn't have year component in it?
+        It is erroneous to give up those files
+        """
         if first_dt is not None and last_dt is not None and \
                         first_dt.usec <= last_dt.usec:
             return True
         else:
             return False
 
-    def get_formatted_line(self, ln, line, options):
+    @staticmethod
+    def get_formatted_line(ln, line, options):
         if options.ignore_lineno:
             line_to_add = line
         elif options.ignore_color:
             line_to_add = str(ln) + ':' + ' ' + line
         else:
-            line_to_add = fcolors.BRIGHT_YELLOW + str(ln) + ':' + fcolors.ENDC + ' ' + line
+            line_to_add = FColors.BRIGHT_YELLOW + str(ln) + ':' + FColors.ENDC + ' ' + line
         return line_to_add
 
+    def print_file_header(self, options):
+        if options.ignore_color:
+            print('\n========================= %s =========================\n' % self.filename)
+        else:
+            print('\n%s========================= %s =========================%s\n' %
+                  (FColors.BRIGHT_RED, self.filename, FColors.ENDC))
+
     def print_lines(self, options):
-        if len(self.lines):
-            if options.ignore_color:
-                print('\n========================= %s =========================\n' % self.filename)
-            else:
-                print('\n%s========================= %s =========================%s\n' %
-                      (fcolors.BRIGHT_RED, self.filename, fcolors.ENDC))
-            print ''.join(self.lines)
+        header_not_printed = True
+        for line in self.lines:
+            if header_not_printed:
+                self.print_file_header(options)
+                header_not_printed = False
+            sys.stdout.write(line)
 
 
 def get_options():
@@ -395,7 +410,7 @@ def get_options():
                         help='Ignore line number')
 
     parser.add_argument('--ignore_color', action='store_true',
-                        help='Ignore color in line number')
+                        help='Ignore color')
 
     parser.add_argument('-n', '--num_lines', default=DEFAULT_NUM_LINES_FOR_DT_PAT,
                         type=int,
@@ -417,7 +432,7 @@ def main():
     options = get_options()
 
     for f in gen_all_files(options.dir, options.sub, options.file):
-        lf = logFile(f, options.dt1, options.dt2, options)
+        lf = LogFile(f, options)
         lf.print_lines(options)
 
 if __name__ == '__main__':
