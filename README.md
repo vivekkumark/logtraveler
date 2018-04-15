@@ -16,6 +16,7 @@ used across log files.
 * Flexible way to specify datetime range
 * Advanced way to specify search paths
 (dir and relative dir and filename pattern combinations)
+* Support for ".gz" compressed log file is built-in
 
 ## Usage
 
