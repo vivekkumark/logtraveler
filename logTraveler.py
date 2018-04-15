@@ -9,13 +9,13 @@ import fnmatch
 import gzip
 import glob
 
-DEFAULT_SUB_DIRS = 'var/log/,var/nvOS/etc/*/,var/nvOS/log/,var/lib/lxc/*/rootfs/,var/lib/lxc/*/rootfs/var/log'
-
-CYEAR = datetime.datetime.now().year
+DEFAULT_SUB_DIRS = 'var/log/ , var/nvOS/etc/*/ , var/nvOS/log/ , var/lib/lxc/*/rootfs/ , var/lib/lxc/*/rootfs/var/log'
 
 # Number of lines to search on log file
 # for datetime pattern before giving up
-NUM_LINES_FOR_DT_PAT = 100
+DEFAULT_NUM_LINES_FOR_DT_PAT = 100
+
+CYEAR = datetime.datetime.now().year
 
 # https://docs.python.org/2/library/datetime.html
 
@@ -306,7 +306,7 @@ class logFile:
                 break
             except ValueError:
                 pass
-            if n_line > NUM_LINES_FOR_DT_PAT:
+            if n_line > options.num_lines:
                 break
 
         if dt_pat is None:
@@ -318,7 +318,7 @@ class logFile:
                 break
             except ValueError:
                 pass
-            if n_line > NUM_LINES_FOR_DT_PAT:
+            if n_line > options.num_lines:
                 break
 
         if self.is_log_ordered(first_dt, last_dt):
@@ -367,35 +367,40 @@ class logFile:
 
 
 def get_options():
-    parser = argparse.ArgumentParser(epilog='Example of use')
+    parser = argparse.ArgumentParser(epilog='')
 
     parser.add_argument('-d', '--dt', required=True,
                         help="datetime to filter lines"
                              "('dt1@dt2' or "
+                             "'dt' or "
                              "'dt+num[us|ms|s|m]' or "
                              "'dt-num[us|ms|s|m]' or "
                              "'dt+-num[us|ms|s|m]')")
 
     parser.add_argument('--dir', default=os.getcwd(),
-                        help="Directory to search (default cwd: '%(default)s')")
+                        help="comma separated list of directory to search (default cwd: '%(default)s')")
 
     parser.add_argument('-l', '--local', action='store_true',
-                        help='Local log search --dir will be set to \'\\\'')
+                        help="Local log search, --dir will be set to '\\'")
 
     parser.add_argument('-s', '--sub', default=DEFAULT_SUB_DIRS,
-                        help='(, separated) Within --dir subdirs pattern to search, '
-                             'if just \'*\' is passed recursively searched on all subdirs'
-                             '(default: \'%(default)s\')')
+                        help="comma separated subdirs pattern to search within --dir , "
+                             "if just '*' is passed recursively searched on all subdirs"
+                             "(default: '%(default)s')")
 
     parser.add_argument('-f', '--file', default='*log*',
-                        help='(, separated) Unix shell style patterns '
-                             'in file names, provide within quote: (default: \'%(default)s\')')
+                        help="comma separated file name patterns, provide within quote: (default: '%(default)s')")
 
     parser.add_argument('--ignore_lineno', action='store_true',
                         help='Ignore line number')
 
     parser.add_argument('--ignore_color', action='store_true',
                         help='Ignore color in line number')
+
+    parser.add_argument('-n', '--num_lines', default=DEFAULT_NUM_LINES_FOR_DT_PAT,
+                        type=int,
+                        help="Number of lines to search to classify datetime in a file"
+                             "(default: %(default)s)")
 
     options = parser.parse_args()
 
