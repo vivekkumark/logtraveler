@@ -381,6 +381,47 @@ class LogFile:
             sys.stdout.write(line)
 
 
+def print_example_usage():
+    fill = dict()
+    fill['logTraveler'] = sys.argv[0]
+    fill['dt'] = '\n'.join(('-  ' + k + ', ' for k in DT_FORMATS.keys()))
+    example_usage = """            
+            Supported datetime patterns:
+            
+            {dt}
+            
+            Example Usage:
+            
+            1) exact datetime
+            {logTraveler} -d 'Apr04.10:08:22.627'
+            
+            2) b/w two datetime
+            {logTraveler} -d 'Apr04.10:08:22.627@Apr04.10:10:22.627'
+            
+            3) 5 sec from specific datetime
+            {logTraveler} -d 'Apr04.10:08:22.627+5s'
+            
+            4) 10ms around specific datetime
+            {logTraveler} -d 'Apr04.10:08:22.627+-10ms'
+            
+            5) Search file name startswith 'nvOSd' or 'route'
+            {logTraveler} -d 'Apr04.10:08:22.627-5ms' -f 'nvOSd*,route*'
+                        
+            6) Search all files with the name 'log' in it, within only relative subdirs
+              'var/log' and pattern 'log/*/test' in directory '/tmp/prj1' and '/tmp/prj2'
+            {logTraveler} -d 'Apr04.10:08:22.627-1ms' -f '*log*' -dir '/tmp/prj1,/tmp/prj2' -s 'var/log,log/*/test'  
+               
+            7) Search all files with the name 'log' in it, recursively on all subdirs within dir '/tmp/test'
+            {logTraveler} -d 'Apr04.10:08:22.627-+5ms' -f '*log*' -dir '/tmp/test' -s '*'
+            
+            8) On local host search only on dir 'var/log' for file 'test.log'
+            {logTraveler} -d 'Apr04.10:08:22.627-+5ms' -l -f 'test.log' -s 'var/log'
+            
+        """.format(**fill)
+    print os.linesep.join(
+        (l.strip() for l in example_usage.split(os.linesep)))
+
+
 def get_options():
     parser = argparse.ArgumentParser(epilog='')
 
@@ -393,7 +434,8 @@ def get_options():
                              "'dt+-num[us|ms|s|m]')")
 
     parser.add_argument('--dir', default=os.getcwd(),
-                        help="comma separated list of directory to search (default cwd: '%(default)s')")
+                        help="comma separated list of directory to search "
+                             "(default cwd: '%(default)s')")
 
     parser.add_argument('-l', '--local', action='store_true',
                         help="Local log search, --dir will be set to '\\'")
@@ -404,7 +446,8 @@ def get_options():
                              "(default: '%(default)s')")
 
     parser.add_argument('-f', '--file', default='*log*',
-                        help="comma separated file name patterns, provide within quote: (default: '%(default)s')")
+                        help="comma separated file name patterns, "
+                             "provide within quote: (default: '%(default)s')")
 
     parser.add_argument('--ignore_lineno', action='store_true',
                         help='Ignore line number')
@@ -414,10 +457,14 @@ def get_options():
 
     parser.add_argument('-n', '--num_lines', default=DEFAULT_NUM_LINES_FOR_DT_PAT,
                         type=int,
-                        help="Number of lines to search to classify datetime in a file"
-                             "(default: %(default)s)")
+                        help="Number of lines to search to classify datetime pattern "
+                             "of a file (default: %(default)s)")
 
-    options = parser.parse_args()
+    try:
+        options = parser.parse_args()
+    except SystemExit:
+        print_example_usage()
+        raise SystemExit
 
     # pre-processing the given options to make it consumable
     if options.local:
