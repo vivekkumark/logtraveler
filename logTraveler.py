@@ -9,7 +9,7 @@ import fnmatch
 import gzip
 import glob
 
-DEFAULT_LOCAL_PATHS = 'var/log/:var/nvOS/etc/*/:var/nvOS/log/:var/lib/lxc/*/rootfs/:var/lib/lxc/*/rootfs/var/log'
+DEFAULT_SUB_DIRS = 'var/log/,var/nvOS/etc/*/,var/nvOS/log/,var/lib/lxc/*/rootfs/,var/lib/lxc/*/rootfs/var/log'
 
 CYEAR = datetime.datetime.now().year
 
@@ -183,7 +183,7 @@ def get_dt1_dt2(dt_str):
         if '@' not in dt_str:
             l_trange = None
             h_trange = None
-            if '+-' in dt_str:
+            if '+-' in dt_str or '-+' in dt_str:
                 dt_str, trange = dt_str.split('+-')
                 l_trange = trange
                 h_trange = trange
@@ -233,28 +233,41 @@ def get_dt1_dt2(dt_str):
         raise argparse.ArgumentTypeError(msg)
 
 
-def get_all_files(search_dir, paths, pats):
-    files = []
-    if paths == '*':
-        for dirpath, dirnames, filenames in os.walk(search_dir, followlinks=False):
-            for pat in pats.split(','):
-                for f in fnmatch.filter(filenames, pat):
-                    files.append(os.path.join(dirpath, f))
+def gen_all_files(search_dirs, subdirpats, filepats):
+    def gen_item(items):
+        for item in items.split(','):
+            item = item.strip()
+            if len(item):
+                yield item
+
+    if subdirpats == '*':
+        for search_dir in gen_item(search_dirs):
+            # subdirpats is '*', so recursively search all subdirs
+            for dirpath, dirnames, filenames in os.walk(search_dir, followlinks=False):
+                for filepat in gen_item(filepats):
+                    for f in fnmatch.filter(filenames, filepat):
+                        yield os.path.join(dirpath, f)
     else:
-        for path in paths.split(':'):
-            for pat in pats.split(','):
-                for f in glob.glob(os.path.join(search_dir, path, pat)):
-                    if os.path.isfile(f):
-                        files.append(f)
-    return files
+        for search_dir in gen_item(search_dirs):
+            for subdir in gen_item(subdirpats):
+                for filepat in gen_item(filepats):
+                    for f in glob.glob(os.path.join(search_dir, subdir, filepat)):
+                        if os.path.isfile(f):
+                            yield f
 
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
+class fcolors:
+    """
+    https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
+    """
+    BRIGHT_BLACK = '\033[90m'
+    BRIGHT_RED = '\033[91m'
+    BRIGHT_GREEN = '\033[92m'
+    BRIGHT_YELLOW = '\033[93m'
+    BRIGHT_BLUE = '\033[94m'
+    BRIGHT_MAGENTA = '\033[95m'
+    BRIGHT_CYAN = '\033[96m'
+    BRIGHT_WHITE = '\033[97m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
@@ -340,44 +353,67 @@ class logFile:
         elif options.ignore_color:
             line_to_add = str(ln) + ':' + ' ' + line
         else:
-            line_to_add = bcolors.WARNING + str(ln) + ':' + bcolors.ENDC + ' ' + line
+            line_to_add = fcolors.BRIGHT_YELLOW + str(ln) + ':' + fcolors.ENDC + ' ' + line
         return line_to_add
 
-    def print_lines(self):
+    def print_lines(self, options):
         if len(self.lines):
-            print('\n========================= %s =========================\n' % self.filename)
+            if options.ignore_color:
+                print('\n========================= %s =========================\n' % self.filename)
+            else:
+                print('\n%s========================= %s =========================%s\n' %
+                      (fcolors.BRIGHT_RED, self.filename, fcolors.ENDC))
             print ''.join(self.lines)
-            print '\n'
 
 
 def get_options():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(epilog='Example of use')
 
-    parser.add_argument('-d', '--dt', required=True, help='Starting datetime')
-    parser.add_argument('--dir', default=os.getcwd(), help='Directory to search log files (default cwd: %(default)s)')
-    parser.add_argument('--path', default=DEFAULT_LOCAL_PATHS,
-                        help='Path to search (: separated) undir --dir, if * is given recursively searched (default: \'%(default)s\')')
-    parser.add_argument('--pat', default='*log*',
-                        help='Pattern(unix shell style) to search (, separated) log files, provide within quote: (default: \'%(default)s\')')
+    parser.add_argument('-d', '--dt', required=True,
+                        help="datetime to filter lines"
+                             "('dt1@dt2' or "
+                             "'dt+num[us|ms|s|m]' or "
+                             "'dt-num[us|ms|s|m]' or "
+                             "'dt+-num[us|ms|s|m]')")
 
-    parser.add_argument('-l', '--local', action='store_true', help='Local log search --dir will be set to \'\\\'')
+    parser.add_argument('--dir', default=os.getcwd(),
+                        help="Directory to search (default cwd: '%(default)s')")
 
-    parser.add_argument('--ignore_color', action='store_true', help='Ignore color in line number')
-    parser.add_argument('--ignore_lineno', action='store_true', help='Ignore line number')
+    parser.add_argument('-l', '--local', action='store_true',
+                        help='Local log search --dir will be set to \'\\\'')
 
-    return parser.parse_args()
+    parser.add_argument('-s', '--sub', default=DEFAULT_SUB_DIRS,
+                        help='(, separated) Within --dir subdirs pattern to search, '
+                             'if just \'*\' is passed recursively searched on all subdirs'
+                             '(default: \'%(default)s\')')
+
+    parser.add_argument('-f', '--file', default='*log*',
+                        help='(, separated) Unix shell style patterns '
+                             'in file names, provide within quote: (default: \'%(default)s\')')
+
+    parser.add_argument('--ignore_lineno', action='store_true',
+                        help='Ignore line number')
+
+    parser.add_argument('--ignore_color', action='store_true',
+                        help='Ignore color in line number')
+
+    options = parser.parse_args()
+
+    # pre-processing the given options to make it consumable
+    if options.local:
+        options.dir = '/'
+
+    options.dt1, options.dt2 = get_dt1_dt2(options.dt)
+
+    return options
 
 
 def main():
     options = get_options()
-    dt1, dt2 = get_dt1_dt2(options.dt)
 
-    if options.local:
-        options.dir = '/'
-
-    for f in get_all_files(options.dir, options.path, options.pat):
-        lf = logFile(f, dt1, dt2, options)
-        lf.print_lines()
+    for f in gen_all_files(options.dir, options.sub, options.file):
+        lf = logFile(f, options.dt1, options.dt2, options)
+        lf.print_lines(options)
 
 if __name__ == '__main__':
     main()
