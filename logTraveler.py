@@ -184,8 +184,12 @@ def get_dt1_dt2(dt_str):
         if '@' not in dt_str:
             l_trange = None
             h_trange = None
-            if '+-' in dt_str or '-+' in dt_str:
+            if '+-' in dt_str:
                 dt_str, trange = dt_str.split('+-')
+                l_trange = trange
+                h_trange = trange
+            elif '-+' in dt_str:
+                dt_str, trange = dt_str.split('-+')
                 l_trange = trange
                 h_trange = trange
             elif '+' in dt_str and '-' in dt_str:
