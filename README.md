@@ -1,6 +1,9 @@
 # logtraveler
 A simple tool to filter lines of log files based on given datetime range.
 
+The following screenshot illustrates events happened 4 seconds around 'May 6 19:02:47'
+![Screenshot](res/example.png)
+
 Often times while debugging issues,
 we will be interested in quickly walk through log lines of
 specific datetimestamp in tenths of different 
