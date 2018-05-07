@@ -91,9 +91,9 @@ Example Usage:
 ## How to install?
 
 Make sure that the machine has python installed (version >= 2.7)
-
+'''
 **curl https://raw.githubusercontent.com/vivekkns/logtraveler/master/logTraveler.py > logTraveler.py; chmod +x logTraveler.py**
-
+'''
 ... and to make it handy, add the dir in PATH variable in your
 .bashrc or .bash_profile or
 any script that is used for initializing your shell session
